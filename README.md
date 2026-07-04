@@ -1,27 +1,29 @@
 # Daylight
 
-Daylight is a direct fork of [LizardByte/Sunshine](https://github.com/LizardByte/Sunshine) tuned for professional video work on Apple Silicon Macs.
+Daylight is a direct fork of [LizardByte/Sunshine](https://github.com/LizardByte/Sunshine) tuned for high-quality Moonlight sessions on Apple Silicon Macs.
 
-The goal is a clean upstream-based host for Moonlight that fits 4K HDR editorial, grading review, ProRes/EXR workflows, and Mac Studio setups. It keeps Sunshine's protocol and encoder foundation while adding macOS-native capture and display behavior needed for reliable professional review sessions.
+It targets local-network professional video review: 4K HDR editorial, grading, ProRes/EXR workflows, and Mac Studio setups. The fork keeps Sunshine's protocol, pairing, web UI, and encoder foundation, then adds macOS-native display, capture, input, and audio behavior for cleaner review sessions.
 
-## Focus
+## What Daylight Adds
 
-- Apple Silicon first: macOS 14+, arm64, VideoToolbox HEVC/AV1, and high-bitrate local-network streaming.
-- On-demand virtual displays: client-sized CGVirtualDisplay sessions that are created after encoder probing and destroyed on disconnect.
-- ScreenCaptureKit video capture: preferred on macOS 12.3+ for virtual-display reliability, with AVFoundation fallback.
-- Native system audio: upstream Core Audio taps with compatibility aliases for `audio_sink = system`, `desktop`, or `screencapturekit`.
-- Virtual gamepads: IOHIDUserDevice-backed gamepads without the keyboard-emulation fallback from older Lumen builds.
-- Moonlight fidelity ceiling: HEVC Main10 / AV1 10-bit 4:2:0 HDR where supported by the client and VideoToolbox.
+- On-demand `CGVirtualDisplay` sessions sized to the Moonlight client, with hardened helper cleanup on disconnect.
+- Display P3 virtual-display primaries, resolution-aware physical sizing, 60 Hz fallback modes, and support up to 7680x4320.
+- ScreenCaptureKit video capture on macOS 12.3+, with AVFoundation fallback.
+- HDR display detection and HDR10 metadata for macOS capture paths.
+- ScreenCaptureKit 10-bit/P010 capture setup and diagnostics for HEVC Main10 / AV1 10-bit sessions.
+- Native `IOHIDUserDevice` virtual gamepads, without the keyboard-emulation fallback used by older Lumen builds.
+- Core Audio tap support with compatibility aliases for `audio_sink = system`, `desktop`, and `screencapturekit`.
+- Retina and virtual-display mouse coordinate fixes, plus reduced cursor-warp traffic.
 
 ## Requirements
 
-- Apple Silicon Mac, tested target: Mac Studio-class machines.
+- Apple Silicon Mac, with Mac Studio-class machines as the primary target.
 - macOS 14 or newer.
 - Xcode Command Line Tools.
 - Homebrew.
 - A Moonlight client for playback.
 
-Daylight remains a Sunshine fork, so the web UI is still served at `https://localhost:47990` and normal Sunshine configuration files live under `~/.config/sunshine`.
+Daylight is still Sunshine under the hood. The web UI is served at `https://localhost:47990`, and configuration files live under `~/.config/sunshine`.
 
 ## Install
 
@@ -29,9 +31,9 @@ Daylight remains a Sunshine fork, so the web UI is still served at `https://loca
 ./install.sh
 ```
 
-The installer builds the current checkout, installs binaries under `~/.local/share/daylight`, and creates `~/.local/bin/daylight`. It also creates a `lumen` symlink for muscle memory.
+The installer builds the current checkout, installs binaries under `~/.local/share/daylight`, and creates launchers at `~/.local/bin/daylight` and `~/.local/bin/lumen`.
 
-The installer will not overwrite an existing `~/.config/sunshine/sunshine.conf`. If no config exists, it creates a default tuned for local professional review:
+It will not overwrite an existing `~/.config/sunshine/sunshine.conf`. If no config exists, it creates a local-review default:
 
 ```ini
 audio_sink = system
@@ -40,23 +42,33 @@ upnp = enabled
 max_bitrate = 150000
 ```
 
-Set Web UI credentials with:
+Set web UI credentials:
 
 ```bash
 daylight --creds username password
 ```
 
-Then start Daylight:
+Start Daylight:
 
 ```bash
 daylight
 ```
 
-## Fidelity Notes
+## Recommended Review Setup
 
-Moonlight and VideoToolbox define the practical ceiling. Daylight targets 10-bit 4:2:0 HEVC Main10 or AV1 for HDR review; VideoToolbox does not provide a practical 4:4:4 encode path for this use case. For grading review, select HEVC Main10 or AV1 in the Moonlight client when available and use wired networking where possible.
+Use wired networking when possible. In Moonlight, select HEVC Main10 or AV1 when the client offers it, enable HDR for HDR review, and set bitrate high enough for the session target. Daylight defaults `max_bitrate` to 150 Mbps for 4K HDR local review.
 
-Daylight defaults `max_bitrate` to 150 Mbps for 4K HDR review. HEVC Main10 and AV1 10-bit are advertised through Sunshine's existing encoder probe results, so they appear to Moonlight only when the active VideoToolbox path successfully probes support.
+HEVC Main10 and AV1 10-bit are advertised through Sunshine's existing encoder probe results. They appear to Moonlight only when the active VideoToolbox path successfully reports support.
+
+## Limits
+
+VideoToolbox and Moonlight define the practical fidelity ceiling. Daylight targets 10-bit 4:2:0 HEVC Main10 or AV1 for HDR review; it does not add a practical VideoToolbox 4:4:4 encode path.
+
+Runtime validation still needs real hardware and client testing: Mac Studio or equivalent Apple Silicon host, HDR-capable display or virtual display workflow, Moonlight HDR client, Screen Recording permissions, and a sustained 4K60 session.
+
+## Release
+
+Current Daylight release: [`v2026.703.144423-daylight.1`](https://github.com/mhadifilms/Daylight/releases/tag/v2026.703.144423-daylight.1), based on Sunshine `v2026.703.144423`.
 
 ## Attribution
 
