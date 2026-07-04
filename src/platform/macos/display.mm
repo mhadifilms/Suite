@@ -4,6 +4,7 @@
  */
 
 // standard includes
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <sstream>
@@ -306,6 +307,57 @@ namespace platf {
 
       return 0;
     }
+
+    NSScreen *screen_for_display(CGDirectDisplayID display_id) {
+      for (NSScreen *screen in [NSScreen screens]) {
+        NSNumber *screen_number = screen.deviceDescription[@"NSScreenNumber"];
+        if (screen_number && [screen_number unsignedIntValue] == display_id) {
+          return screen;
+        }
+      }
+
+      return nil;
+    }
+
+    bool display_is_hdr(CGDirectDisplayID display_id) {
+      NSScreen *screen = screen_for_display(display_id);
+      if (!screen) {
+        return false;
+      }
+
+      return screen.maximumPotentialExtendedDynamicRangeColorComponentValue > 1.0;
+    }
+
+    bool populate_hdr_metadata(CGDirectDisplayID display_id, SS_HDR_METADATA &metadata) {
+      std::memset(&metadata, 0, sizeof(metadata));
+
+      NSScreen *screen = screen_for_display(display_id);
+      if (!screen || screen.maximumPotentialExtendedDynamicRangeColorComponentValue <= 1.0) {
+        return false;
+      }
+
+      metadata.displayPrimaries[0].x = 0.680f * 50000;
+      metadata.displayPrimaries[0].y = 0.320f * 50000;
+      metadata.displayPrimaries[1].x = 0.265f * 50000;
+      metadata.displayPrimaries[1].y = 0.690f * 50000;
+      metadata.displayPrimaries[2].x = 0.150f * 50000;
+      metadata.displayPrimaries[2].y = 0.060f * 50000;
+      metadata.whitePoint.x = 0.3127f * 50000;
+      metadata.whitePoint.y = 0.3290f * 50000;
+
+      const auto max_luminance = std::clamp(
+        static_cast<int>(screen.maximumPotentialExtendedDynamicRangeColorComponentValue * 100.0),
+        400,
+        1600
+      );
+      metadata.maxDisplayLuminance = max_luminance;
+      metadata.minDisplayLuminance = static_cast<int>(0.005f * 10000);
+      metadata.maxContentLightLevel = 0;
+      metadata.maxFrameAverageLightLevel = 0;
+      metadata.maxFullFrameLuminance = max_luminance;
+
+      return true;
+    }
   }  // namespace
 
   /**
@@ -428,6 +480,14 @@ namespace platf {
       return populate_dummy_img(img, av_capture.frameWidth, av_capture.frameHeight, av_capture.pixelFormat);
     }
 
+    bool is_hdr() override {
+      return display_is_hdr(display_id);
+    }
+
+    bool get_hdr_metadata(SS_HDR_METADATA &metadata) override {
+      return populate_hdr_metadata(display_id, metadata);
+    }
+
     /**
      * A bridge from the pure C++ code of the hwdevice_t class to the pure Objective C code.
      *
@@ -534,6 +594,14 @@ namespace platf {
       }
 
       return populate_dummy_img(img, sc_capture.frameWidth, sc_capture.frameHeight, sc_capture.pixelFormat);
+    }
+
+    bool is_hdr() override {
+      return display_is_hdr(display_id);
+    }
+
+    bool get_hdr_metadata(SS_HDR_METADATA &metadata) override {
+      return populate_hdr_metadata(display_id, metadata);
     }
 
     std::unique_ptr<avcodec_encode_device_t> make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
