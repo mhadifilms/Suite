@@ -375,7 +375,7 @@ namespace config {
 
     // Suite extension feature gates. Advertised to clients via SuiteFeatureFlags.
     bool clipboard_sync {true};  ///< Allow paired clients to read/write the host clipboard.
-    bool cursor_channel {false};  ///< Stream cursor shape to clients for local rendering.
+    bool cursor_channel {true};  ///< Stream cursor shape to clients for local rendering.
   };
 
   extern video_t video;

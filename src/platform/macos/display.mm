@@ -418,7 +418,9 @@ namespace platf {
 
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       if (cursor) {
-        [av_capture setCursorCapture:*cursor];
+        // When the Suite cursor channel is active, the client renders the cursor locally,
+        // so we must not bake it into the captured frame (avoids a laggy double cursor).
+        [av_capture setCursorCapture:(*cursor && !config::sunshine.cursor_channel)];
       }
 
       auto signal = [av_capture capture:^(CMSampleBufferRef sampleBuffer) {
@@ -572,7 +574,9 @@ namespace platf {
 
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       if (cursor) {
-        [sc_capture setCursorCapture:*cursor];
+        // When the Suite cursor channel is active, the client renders the cursor locally,
+        // so we must not bake it into the captured frame (avoids a laggy double cursor).
+        [sc_capture setCursorCapture:(*cursor && !config::sunshine.cursor_channel)];
       }
 
       auto signal = [sc_capture capture:^(CMSampleBufferRef sampleBuffer) {
@@ -595,7 +599,7 @@ namespace platf {
       while (dispatch_semaphore_wait(signal, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)) != 0) {
         // Track client-side cursor toggles (e.g. Ctrl+Alt+Shift+N) without restarting the stream.
         if (cursor) {
-          [sc_capture setCursorCapture:*cursor];
+          [sc_capture setCursorCapture:(*cursor && !config::sunshine.cursor_channel)];
         }
 
         std::shared_ptr<img_t> img_out;
