@@ -10,6 +10,7 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <vector>
 
 // lib includes
 #include <boost/core/noncopyable.hpp>
@@ -980,6 +981,21 @@ namespace platf {
    * @brief Check whether the current platform display path can advertise HDR capture.
    */
   bool is_hdr_supported_for_capture();
+
+  struct cursor_shape_t {
+    std::uint16_t width {};
+    std::uint16_t height {};
+    std::uint16_t hotspot_x {};
+    std::uint16_t hotspot_y {};
+    bool visible {true};
+    std::vector<std::uint8_t> bgra;
+  };
+
+  /**
+   * @brief Read the current host cursor shape for client-side cursor rendering.
+   * @return True when a shape was captured.
+   */
+  bool get_cursor_shape(cursor_shape_t &shape);
 
 #ifdef __APPLE__
   /**

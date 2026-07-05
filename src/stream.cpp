@@ -49,6 +49,8 @@ constexpr int IDX_RUMBLE_TRIGGER_DATA = 12;  ///< Control-stream message index f
 constexpr int IDX_SET_MOTION_EVENT = 13;  ///< Control-stream message index for set motion event.
 constexpr int IDX_SET_RGB_LED = 14;  ///< Control-stream message index for set rgb led.
 constexpr int IDX_SET_ADAPTIVE_TRIGGERS = 15;  ///< Control-stream message index for set adaptive triggers.
+constexpr int IDX_SUITE_CURSOR_SHAPE = 16;  ///< Suite extension: client-rendered cursor shape.
+[[maybe_unused]] constexpr int IDX_SUITE_CURSOR_POSITION = 17;  ///< Suite extension: client-rendered cursor position.
 
 static const short packetTypes[] = {
   0x0305,  // Start A
@@ -67,6 +69,8 @@ static const short packetTypes[] = {
   0x5501,  // Set motion event (Sunshine protocol extension)
   0x5502,  // Set RGB LED (Sunshine protocol extension)
   0x5503,  // Set Adaptive triggers (Sunshine protocol extension)
+  0x5504,  // Cursor shape (Suite protocol extension)
+  0x5505,  // Cursor position (Suite protocol extension)
 };
 
 namespace asio = boost::asio;
@@ -532,6 +536,7 @@ namespace stream {
 
       platf::feedback_queue_t feedback_queue;
       safe::mail_raw_t::event_t<video::hdr_info_t> hdr_queue;
+      std::uint64_t cursor_shape_hash {};
     } control;  ///< Runtime state for the encrypted GameStream control channel.
 
     std::uint32_t launch_session_id;  ///< RTSP launch-session ID associated with this stream.
@@ -1101,6 +1106,98 @@ namespace stream {
     return 0;
   }
 
+  std::uint64_t cursor_shape_hash(const platf::cursor_shape_t &shape) {
+    std::uint64_t hash = 1469598103934665603ULL;
+    const auto mix = [&hash](std::uint64_t value) {
+      for (int i = 0; i < 8; ++i) {
+        hash ^= (value >> (i * 8)) & 0xFF;
+        hash *= 1099511628211ULL;
+      }
+    };
+
+    mix(shape.width);
+    mix(shape.height);
+    mix(shape.hotspot_x);
+    mix(shape.hotspot_y);
+    mix(shape.visible ? 1 : 0);
+    for (auto byte : shape.bgra) {
+      hash ^= byte;
+      hash *= 1099511628211ULL;
+    }
+
+    return hash;
+  }
+
+  int send_cursor_shape(session_t *session) {
+#ifndef __APPLE__
+    return 0;
+#else
+    if (!config::sunshine.cursor_channel || !session->control.peer) {
+      return 0;
+    }
+
+    platf::cursor_shape_t shape;
+    if (!platf::get_cursor_shape(shape) || shape.bgra.empty()) {
+      return 0;
+    }
+
+    if (shape.width > 128 || shape.height > 128 || shape.bgra.size() != static_cast<std::size_t>(shape.width) * shape.height * 4) {
+      return 0;
+    }
+
+    const auto hash = cursor_shape_hash(shape);
+    if (hash == session->control.cursor_shape_hash) {
+      return 0;
+    }
+
+    session->control.cursor_shape_hash = hash;
+
+    constexpr std::size_t cursor_header_size = 14;
+    constexpr std::size_t max_cursor_shape_plaintext_size = sizeof(control_header_v2) + cursor_header_size + 128 * 128 * 4;
+
+    std::vector<std::uint8_t> plaintext(sizeof(control_header_v2) + cursor_header_size + shape.bgra.size());
+    auto header = reinterpret_cast<control_header_v2 *>(plaintext.data());
+    header->type = packetTypes[IDX_SUITE_CURSOR_SHAPE];
+    header->payloadLength = static_cast<std::uint16_t>(plaintext.size() - sizeof(control_header_v2));
+
+    auto *out = plaintext.data() + sizeof(control_header_v2);
+    const auto put16 = [&out](std::uint16_t value) {
+      out[0] = static_cast<std::uint8_t>(value & 0xFF);
+      out[1] = static_cast<std::uint8_t>((value >> 8) & 0xFF);
+      out += 2;
+    };
+    const auto put32 = [&out](std::uint32_t value) {
+      out[0] = static_cast<std::uint8_t>(value & 0xFF);
+      out[1] = static_cast<std::uint8_t>((value >> 8) & 0xFF);
+      out[2] = static_cast<std::uint8_t>((value >> 16) & 0xFF);
+      out[3] = static_cast<std::uint8_t>((value >> 24) & 0xFF);
+      out += 4;
+    };
+
+    put16(shape.width);
+    put16(shape.height);
+    put16(shape.hotspot_x);
+    put16(shape.hotspot_y);
+    *out++ = shape.visible ? 1 : 0;
+    *out++ = 0;  // BGRA8
+    put32(static_cast<std::uint32_t>(shape.bgra.size()));
+    std::copy(shape.bgra.begin(), shape.bgra.end(), out);
+
+    std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(max_cursor_shape_plaintext_size) + crypto::cipher::tag_size>
+      encrypted_payload;
+
+    auto payload = encode_control(session, util::view(plaintext.data(), plaintext.data() + plaintext.size()), encrypted_payload);
+    if (session->broadcast_ref->control_server.send(payload, session->control.peer)) {
+      TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
+      BOOST_LOG(warning) << "Couldn't send Suite cursor shape to ["sv << addr << ':' << port << ']';
+      return -1;
+    }
+
+    BOOST_LOG(verbose) << "Sent Suite cursor shape "sv << shape.width << "x"sv << shape.height;
+    return 0;
+#endif
+  }
+
   /**
    * @brief Run the broadcast control-channel worker thread.
    *
@@ -1109,6 +1206,7 @@ namespace stream {
   void controlBroadcastThread(control_server_t *server) {
     server->map(packetTypes[IDX_PERIODIC_PING], [](session_t *session, const std::string_view &payload) {
       BOOST_LOG(verbose) << "type [IDX_PERIODIC_PING]"sv;
+      send_cursor_shape(session);
     });
 
     server->map(packetTypes[IDX_START_A], [&](session_t *session, const std::string_view &payload) {

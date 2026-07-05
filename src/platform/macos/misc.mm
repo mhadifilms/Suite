@@ -13,6 +13,7 @@
 #endif
 
 // standard includes
+#include <algorithm>
 #include <fcntl.h>
 #include <ifaddrs.h>
 
@@ -308,6 +309,65 @@ namespace platf {
       NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
       [pasteboard clearContents];
       return [pasteboard setString:contents forType:NSPasteboardTypeString];
+    }
+  }
+
+  bool get_cursor_shape(cursor_shape_t &shape) {
+    @autoreleasepool {
+      NSCursor *cursor = [NSCursor currentSystemCursor];
+      NSImage *image = cursor.image;
+      if (!image) {
+        return false;
+      }
+
+      NSRect imageRect = NSMakeRect(0, 0, image.size.width, image.size.height);
+      CGImageRef cgImage = [image CGImageForProposedRect:&imageRect context:nil hints:nil];
+      if (!cgImage) {
+        return false;
+      }
+
+      const size_t width = CGImageGetWidth(cgImage);
+      const size_t height = CGImageGetHeight(cgImage);
+      if (width == 0 || height == 0 || width > 128 || height > 128) {
+        return false;
+      }
+
+      std::vector<std::uint8_t> bgra(width * height * 4);
+      CGColorSpaceRef colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+      if (!colorSpace) {
+        return false;
+      }
+
+      const CGBitmapInfo bitmapInfo = kCGBitmapByteOrder32Little | static_cast<CGBitmapInfo>(kCGImageAlphaPremultipliedFirst);
+      CGContextRef context = CGBitmapContextCreate(
+        bgra.data(),
+        width,
+        height,
+        8,
+        width * 4,
+        colorSpace,
+        bitmapInfo
+      );
+      CGColorSpaceRelease(colorSpace);
+      if (!context) {
+        return false;
+      }
+
+      CGContextDrawImage(context, CGRectMake(0, 0, width, height), cgImage);
+      CGContextRelease(context);
+
+      const NSPoint hotSpot = cursor.hotSpot;
+      const CGFloat scaleX = image.size.width > 0 ? static_cast<CGFloat>(width) / image.size.width : 1.0;
+      const CGFloat scaleY = image.size.height > 0 ? static_cast<CGFloat>(height) / image.size.height : 1.0;
+
+      shape.width = static_cast<std::uint16_t>(width);
+      shape.height = static_cast<std::uint16_t>(height);
+      shape.hotspot_x = static_cast<std::uint16_t>(std::clamp<CGFloat>(hotSpot.x * scaleX, 0, width - 1));
+      shape.hotspot_y = static_cast<std::uint16_t>(std::clamp<CGFloat>(hotSpot.y * scaleY, 0, height - 1));
+      shape.visible = true;
+      shape.bgra = std::move(bgra);
+
+      return true;
     }
   }
 
