@@ -18,6 +18,7 @@
 
 // platform includes
 #include <arpa/inet.h>
+#include <AppKit/AppKit.h>
 #include <dlfcn.h>
 #include <Foundation/Foundation.h>
 #include <mach-o/dyld.h>
@@ -284,6 +285,42 @@ namespace platf {
 
   bool virtual_display_is_ready() {
     return ::virtual_display_is_ready();
+  }
+
+  std::string get_clipboard() {
+    @autoreleasepool {
+      NSString *contents = [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString];
+      if (!contents) {
+        return {};
+      }
+
+      return std::string {contents.UTF8String};
+    }
+  }
+
+  bool set_clipboard(const std::string &content) {
+    @autoreleasepool {
+      NSString *contents = [NSString stringWithUTF8String:content.c_str()];
+      if (!contents) {
+        return false;
+      }
+
+      NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+      [pasteboard clearContents];
+      return [pasteboard setString:contents forType:NSPasteboardTypeString];
+    }
+  }
+
+  bool is_hdr_supported_for_capture() {
+    if (@available(macOS 15.0, *)) {
+      for (NSScreen *screen in [NSScreen screens]) {
+        if (screen.maximumExtendedDynamicRangeColorComponentValue > 1.0) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   void restart_on_exit() {

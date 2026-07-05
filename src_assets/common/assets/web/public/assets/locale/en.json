@@ -32,6 +32,10 @@
     "username": "Username",
     "warning": "Warning!"
   },
+  "gamepads": {
+    "macos_hid": "macOS Virtual HID Gamepad",
+    "macos_hid_unavailable": "macOS virtual HID gamepads require the virtual HID entitlement."
+  },
   "apps": {
     "actions": "Actions",
     "add_cmds": "Add Commands",
@@ -423,7 +427,7 @@
     "wan_encryption_mode_desc": "This determines when encryption will be used when streaming over the Internet. Encryption can reduce streaming performance, particularly on less powerful hosts and clients."
   },
   "index": {
-    "description": "Sunshine is a self-hosted game stream host for Moonlight.",
+    "description": "Suite is a self-hosted streaming host for the edit suite, built for 4K HDR review.",
     "download": "Download",
     "fix_now": "Fix Now",
     "installed_version_not_stable": "You are running a pre-release version of Sunshine. You may experience bugs or other issues. Please report any issues you encounter. Thank you for helping to make Sunshine a better software!",
@@ -437,7 +441,7 @@
     "vigembus_not_installed_title": "ViGEmBus Driver Not Installed",
     "vigembus_outdated_desc": "You are running an outdated version of ViGEmBus (v{version}). Version 1.17 or higher is required for proper gamepad support. Click the button below to update.",
     "vigembus_outdated_title": "ViGEmBus Driver Outdated",
-    "welcome": "Hello, Sunshine!"
+    "welcome": "Welcome to Suite"
   },
   "navbar": {
     "applications": "Applications",
@@ -471,6 +475,7 @@
     "theme_rose_pine": "Rosé Pine",
     "theme_rose_pine_dawn": "Rosé Pine Dawn",
     "theme_slate": "Slate",
+    "theme_suite": "Suite",
     "theme_sunshine": "Sunshine",
     "toggle_theme": "Theme",
     "troubleshoot": "Troubleshooting"
@@ -505,7 +510,7 @@
     "license": "License",
     "lizardbyte_website": "LizardByte Website",
     "resources": "Resources",
-    "resources_desc": "Resources for Sunshine!",
+    "resources_desc": "Resources for Suite",
     "third_party_notice": "Third Party Notice"
   },
   "troubleshooting": {

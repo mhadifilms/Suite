@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <iostream>
 #include <thread>
+#include <vector>
 
 // platform includes
 #include <ApplicationServices/ApplicationServices.h>
@@ -381,7 +382,45 @@ const KeyCodeMap kKeyCodesMap[] = {
   }
 
   void unicode(input_t &input, char *utf8, int size) {
-    BOOST_LOG(info) << "unicode: Unicode input not yet implemented for MacOS."sv;
+    const auto macos_input = static_cast<macos_input_t *>(input.get());
+
+    CFStringRef text = CFStringCreateWithBytes(kCFAllocatorDefault, reinterpret_cast<const UInt8 *>(utf8), size, kCFStringEncodingUTF8, false);
+    if (!text) {
+      BOOST_LOG(warning) << "unicode: dropping invalid UTF-8 text event"sv;
+      return;
+    }
+
+    const auto length = CFStringGetLength(text);
+    std::vector<UniChar> chars(length);
+    CFStringGetCharacters(text, CFRangeMake(0, length), chars.data());
+    CFRelease(text);
+
+    // CGEventKeyboardSetUnicodeString is documented to reliably deliver only
+    // short strings per event, so emit the text in small chunks.
+    constexpr CFIndex chunk_size = 20;
+    for (CFIndex offset = 0; offset < length; offset += chunk_size) {
+      const auto count = std::min(chunk_size, length - offset);
+
+      CGEventRef down = CGEventCreateKeyboardEvent(macos_input->keyboard_source, 0, true);
+      CGEventRef up = CGEventCreateKeyboardEvent(macos_input->keyboard_source, 0, false);
+      if (!down || !up) {
+        if (down) {
+          CFRelease(down);
+        }
+        if (up) {
+          CFRelease(up);
+        }
+        BOOST_LOG(warning) << "unicode: failed to create keyboard event"sv;
+        return;
+      }
+
+      CGEventKeyboardSetUnicodeString(down, count, chars.data() + offset);
+      CGEventKeyboardSetUnicodeString(up, count, chars.data() + offset);
+      CGEventPost(kCGHIDEventTap, down);
+      CGEventPost(kCGHIDEventTap, up);
+      CFRelease(down);
+      CFRelease(up);
+    }
   }
 
   int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
@@ -457,7 +496,11 @@ const KeyCodeMap kKeyCodesMap[] = {
 
   CGDirectDisplayID target_display(const macos_input_t *macos_input) {
     const auto virtual_display_id = virtual_display_get_id();
-    return virtual_display_id ? static_cast<CGDirectDisplayID>(virtual_display_id) : macos_input->display;
+    if (config::video.virtual_display == "enabled" && virtual_display_id != 0 && virtual_display_is_ready()) {
+      return static_cast<CGDirectDisplayID>(virtual_display_id);
+    }
+
+    return macos_input->display;
   }
 
   CGFloat display_scaling(CGDirectDisplayID display) {
@@ -826,7 +869,7 @@ const KeyCodeMap kKeyCodesMap[] = {
 
   std::vector<supported_gamepad_t> &supported_gamepads(input_t *input) {
     static std::vector unavailable_gamepads {
-      supported_gamepad_t {"", false, "gamepads.macos_hid_unavailable"}
+      supported_gamepad_t {"macos-hid", false, "gamepads.macos_hid_unavailable"}
     };
     static std::vector available_gamepads {
       supported_gamepad_t {"macos-hid", true, "gamepads.macos_hid"}

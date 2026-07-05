@@ -91,9 +91,3 @@ target_link_libraries(vd_helper PRIVATE
         "-framework SkyLight")
 set_target_properties(vd_helper PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-
-add_executable(get_display_origin "${CMAKE_SOURCE_DIR}/src/platform/macos/get_display_origin.m")
-target_link_libraries(get_display_origin PRIVATE
-        "-framework CoreGraphics")
-set_target_properties(get_display_origin PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")

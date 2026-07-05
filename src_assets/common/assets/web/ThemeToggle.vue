@@ -2,6 +2,7 @@
 import { loadAutoTheme, setupThemeToggleListener } from './theme'
 import { onMounted } from 'vue'
 import {
+  Clapperboard,
   CloudMoon,
   CloudRain,
   Coffee,
@@ -60,6 +61,10 @@ onMounted(() => {
       <!-- Dark Themes -->
       <li class="theme-menu-group">
         <h6 class="dropdown-header">{{ $t('navbar.theme_group_dark') }}</h6>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="suite" aria-pressed="false">
+          <Clapperboard :size="18" class="theme-icon icon"></Clapperboard>
+          {{ $t('navbar.theme_suite') }}
+        </button>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="dark" aria-pressed="false">
           <Moon :size="18" class="theme-icon icon"></Moon>
           {{ $t('navbar.theme_dark') }}

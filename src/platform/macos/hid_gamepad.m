@@ -213,13 +213,19 @@ static uint16_t mapButtons(uint32_t sf) {
   _hidDevice = NULL;
 
   if (queue) {
+    dispatch_sync(queue, ^{
+    });
     dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+    CFRetain(device);
     IOHIDUserDeviceSetCancelHandler(device, ^{
       CFRelease(device);
       dispatch_semaphore_signal(sem);
     });
     IOHIDUserDeviceCancel(device);
-    dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+    if (dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)) != 0) {
+      NSLog(@"[HIDGamepad] Timed out waiting for gamepad %d cancel handler", index);
+    }
+    CFRelease(device);
     _hidQueue = nil;
   } else {
     CFRelease(device);

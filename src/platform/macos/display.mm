@@ -319,20 +319,33 @@ namespace platf {
       return nil;
     }
 
+    double active_edr_headroom(NSScreen *screen) {
+      if (!screen) {
+        return 1.0;
+      }
+
+      if (@available(macOS 15.0, *)) {
+        return screen.maximumExtendedDynamicRangeColorComponentValue;
+      }
+
+      return 1.0;
+    }
+
     bool display_is_hdr(CGDirectDisplayID display_id) {
       NSScreen *screen = screen_for_display(display_id);
       if (!screen) {
         return false;
       }
 
-      return screen.maximumPotentialExtendedDynamicRangeColorComponentValue > 1.0;
+      return active_edr_headroom(screen) > 1.0;
     }
 
     bool populate_hdr_metadata(CGDirectDisplayID display_id, SS_HDR_METADATA &metadata) {
       std::memset(&metadata, 0, sizeof(metadata));
 
       NSScreen *screen = screen_for_display(display_id);
-      if (!screen || screen.maximumPotentialExtendedDynamicRangeColorComponentValue <= 1.0) {
+      const auto edr_headroom = active_edr_headroom(screen);
+      if (!screen || edr_headroom <= 1.0) {
         return false;
       }
 
@@ -346,7 +359,7 @@ namespace platf {
       metadata.whitePoint.y = 0.3290f * 50000;
 
       const auto max_luminance = std::clamp(
-        static_cast<int>(screen.maximumPotentialExtendedDynamicRangeColorComponentValue * 100.0),
+        static_cast<int>(edr_headroom * 100.0),
         400,
         1600
       );
@@ -404,6 +417,10 @@ namespace platf {
     }
 
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
+      if (cursor) {
+        [av_capture setCursorCapture:*cursor];
+      }
+
       auto signal = [av_capture capture:^(CMSampleBufferRef sampleBuffer) {
         std::shared_ptr<img_t> img_out;
         if (!pull_free_image_cb(img_out)) {
@@ -554,6 +571,10 @@ namespace platf {
     }
 
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
+      if (cursor) {
+        [sc_capture setCursorCapture:*cursor];
+      }
+
       auto signal = [sc_capture capture:^(CMSampleBufferRef sampleBuffer) {
         std::shared_ptr<img_t> img_out;
         if (!pull_free_image_cb(img_out)) {
@@ -572,6 +593,11 @@ namespace platf {
       }
 
       while (dispatch_semaphore_wait(signal, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)) != 0) {
+        // Track client-side cursor toggles (e.g. Ctrl+Alt+Shift+N) without restarting the stream.
+        if (cursor) {
+          [sc_capture setCursorCapture:*cursor];
+        }
+
         std::shared_ptr<img_t> img_out;
         if (!pull_free_image_cb(img_out)) {
           [sc_capture stopCapture];
@@ -584,7 +610,11 @@ namespace platf {
         }
       }
 
-      return capture_e::ok;
+      bool pixel_format_mismatch = false;
+      @synchronized(sc_capture) {
+        pixel_format_mismatch = sc_capture.pixelFormatMismatch;
+      }
+      return pixel_format_mismatch ? capture_e::error : capture_e::ok;
     }
 
     std::shared_ptr<img_t> alloc_img() override {

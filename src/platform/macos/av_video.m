@@ -86,6 +86,17 @@
   self.frameHeight = frameHeight;
 }
 
+- (void)setCursorCapture:(BOOL)enabled {
+  for (AVCaptureInput *input in self.session.inputs) {
+    if ([input isKindOfClass:[AVCaptureScreenInput class]]) {
+      AVCaptureScreenInput *screenInput = (AVCaptureScreenInput *) input;
+      if (screenInput.capturesCursor != enabled) {
+        screenInput.capturesCursor = enabled;
+      }
+    }
+  }
+}
+
 - (dispatch_semaphore_t)capture:(FrameCallbackBlock)frameCallback {
   @synchronized(self) {
     AVCaptureVideoDataOutput *videoOutput = [[AVCaptureVideoDataOutput alloc] init];

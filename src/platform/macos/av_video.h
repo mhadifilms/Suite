@@ -97,6 +97,12 @@ typedef bool (^FrameCallbackBlock)(CMSampleBufferRef);
  */
 - (void)setFrameWidth:(int)frameWidth frameHeight:(int)frameHeight;
 /**
+ * @brief Enable or disable cursor compositing in captured frames.
+ *
+ * @param enabled Whether the host cursor should be included in captured frames.
+ */
+- (void)setCursorCapture:(BOOL)enabled;
+/**
  * @brief Run the capture loop for this backend.
  *
  * @param frameCallback Frame callback.

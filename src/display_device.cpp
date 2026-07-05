@@ -796,6 +796,13 @@ namespace display_device {
     }
 
     BOOST_LOG(warning) << "Virtual display " << vd_id << " was created but did not become active within 5 seconds";
+    platf::virtual_display_destroy();
+#endif
+  }
+
+  void destroy_virtual_display() {
+#ifdef __APPLE__
+    platf::virtual_display_destroy();
 #endif
   }
 

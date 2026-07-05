@@ -976,6 +976,26 @@ namespace platf {
    */
   bool virtual_display_is_ready();
 
+  /**
+   * @brief Check whether the current platform display path can advertise HDR capture.
+   */
+  bool is_hdr_supported_for_capture();
+
+#ifdef __APPLE__
+  /**
+   * @brief Read the current text contents of the host clipboard.
+   * @return Clipboard text, or an empty string when no text is available.
+   */
+  std::string get_clipboard();
+
+  /**
+   * @brief Replace the host clipboard contents with the supplied text.
+   * @param content Text to place on the clipboard.
+   * @return True when the clipboard was updated.
+   */
+  bool set_clipboard(const std::string &content);
+#endif
+
   void restart();
 
   /**

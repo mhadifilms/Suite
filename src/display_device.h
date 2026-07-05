@@ -107,6 +107,11 @@ namespace display_device {
   void create_virtual_display(const config::video_t &video_config, const rtsp_stream::launch_session_t &session);
 
   /**
+   * @brief Destroy the active macOS virtual display, if one exists.
+   */
+  void destroy_virtual_display();
+
+  /**
    * @brief Reset persisted display state and the captured initial state.
    *
    * This is normally used to get out of the "broken" state where the algorithm wants

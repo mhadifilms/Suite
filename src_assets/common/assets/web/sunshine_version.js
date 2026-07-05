@@ -27,7 +27,11 @@ class SunshineVersion {
     if (v.indexOf("v") === 0) {
       v = v.substring(1);
     }
-    return v.split('.').map(Number);
+    const parts = v
+      .split(/[.-]/)
+      .map((part) => Number(part))
+      .filter((part) => Number.isInteger(part));
+    return parts.length ? parts : null;
   }
 
   isGreater(otherVersion) {
@@ -43,9 +47,11 @@ class SunshineVersion {
     if (!this.versionParts || !otherVersionParts) {
       return false;
     }
-    for (let i = 0; i < Math.min(3, this.versionParts.length, otherVersionParts.length); i++) {
-      if (this.versionParts[i] !== otherVersionParts[i]) {
-        return this.versionParts[i] > otherVersionParts[i];
+    for (let i = 0; i < Math.max(this.versionParts.length, otherVersionParts.length); i++) {
+      const left = this.versionParts[i] ?? 0;
+      const right = otherVersionParts[i] ?? 0;
+      if (left !== right) {
+        return left > right;
       }
     }
     return false;

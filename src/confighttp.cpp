@@ -1406,6 +1406,67 @@ namespace confighttp {
     send_response(response, output_tree);
   }
 
+#ifdef __APPLE__
+  /**
+   * @brief Read the host clipboard text.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/clipboard| GET| null}
+   */
+  void getClipboard(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    nlohmann::json output_tree;
+    output_tree["status"] = true;
+    output_tree["content"] = platf::get_clipboard();
+    send_response(response, output_tree);
+  }
+
+  /**
+   * @brief Replace the host clipboard text.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * The body for the POST request should be JSON serialized in the following format:
+   * @code{.json}
+   * {
+   *   "content": "text to place on the host clipboard"
+   * }
+   * @endcode
+   *
+   * @api_examples{/api/clipboard| POST| {"content":"hello"}}
+   */
+  void setClipboard(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+
+    try {
+      nlohmann::json input_tree = nlohmann::json::parse(ss);
+      nlohmann::json output_tree;
+      output_tree["status"] = platf::set_clipboard(input_tree.value("content", ""));
+      send_response(response, output_tree);
+    } catch (std::exception &e) {
+      BOOST_LOG(warning) << "SetClipboard: "sv << e.what();
+      bad_request(response, request, e.what());
+    }
+  }
+#endif
+
   /**
    * @brief Authenticate a Web UI request and restart the Sunshine process.
    *
@@ -1812,6 +1873,10 @@ namespace confighttp {
     server.resource["^/api/logs$"]["GET"] = getLogs;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/restart$"]["POST"] = restart;
+#ifdef __APPLE__
+    server.resource["^/api/clipboard$"]["GET"] = getClipboard;
+    server.resource["^/api/clipboard$"]["POST"] = setClipboard;
+#endif
     server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;
     server.resource["^/api/vigembus/install$"]["POST"] = installViGEmBus;
 

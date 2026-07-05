@@ -26,6 +26,8 @@ API_AVAILABLE(macos(12.3))
   self.pixelFormat = kCVPixelFormatType_32BGRA;
   self.hdrDisplay = NO;
   self.loggedPixelFormat = NO;
+  self.pixelFormatMismatch = NO;
+  self.captureCursor = YES;
 
   if (mode) {
     self.frameWidth = (int)CGDisplayModeGetPixelWidth(mode);
@@ -139,6 +141,7 @@ static NSString *pixelFormatName(OSType format) {
   }];
   dispatch_semaphore_wait(stopSemaphore, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
   self.stream = nil;
+  self.streamConfig = nil;
 }
 
 - (dispatch_semaphore_t)capture:(SCVideoFrameCallbackBlock)videoCallback {
@@ -151,6 +154,7 @@ static NSString *pixelFormatName(OSType format) {
   @synchronized(self) {
     [self tearDownStream];
     self.stopping = NO;
+    self.pixelFormatMismatch = NO;
     self.videoCallback = videoCallback;
     self.captureSignal = dispatch_semaphore_create(0);
 
@@ -161,7 +165,8 @@ static NSString *pixelFormatName(OSType format) {
     config.minimumFrameInterval = CMTimeMake(1, self.frameRate);
     config.pixelFormat = self.pixelFormat;
     config.queueDepth = 5;
-    config.showsCursor = YES;
+    config.showsCursor = self.captureCursor;
+    self.streamConfig = config;
     config.colorSpaceName = self.hdrDisplay ? kCGColorSpaceITUR_2020 : kCGColorSpaceDisplayP3;
     if (@available(macOS 15.0, *)) {
       if (self.hdrDisplay) {
@@ -173,12 +178,16 @@ static NSString *pixelFormatName(OSType format) {
     self.stream = [[SCStream alloc] initWithFilter:filter configuration:config delegate:self];
     if (!self.stream) {
       NSLog(@"[SCCapture] Failed to create SCStream");
+      self.captureSignal = nil;
+      self.videoCallback = nil;
       return nil;
     }
 
     if (![self.stream addStreamOutput:self type:SCStreamOutputTypeScreen sampleHandlerQueue:self.videoQueue error:&error]) {
       NSLog(@"[SCCapture] Failed to add video output: %@", error.localizedDescription);
-      self.stream = nil;
+      [self tearDownStream];
+      self.captureSignal = nil;
+      self.videoCallback = nil;
       return nil;
     }
 
@@ -197,11 +206,36 @@ static NSString *pixelFormatName(OSType format) {
 
     dispatch_semaphore_wait(startSemaphore, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
     if (!startSuccess) {
-      self.stream = nil;
+      [self tearDownStream];
+      self.captureSignal = nil;
+      self.videoCallback = nil;
       return nil;
     }
 
     return self.captureSignal;
+  }
+}
+
+- (void)setCursorCapture:(BOOL)enabled {
+  @synchronized(self) {
+    if (self.captureCursor == enabled) {
+      return;
+    }
+    self.captureCursor = enabled;
+
+    if (!self.stream || !self.streamConfig || self.stopping) {
+      return;
+    }
+
+    self.streamConfig.showsCursor = enabled;
+    [self.stream updateConfiguration:self.streamConfig
+                   completionHandler:^(NSError *error) {
+                     if (error) {
+                       NSLog(@"[SCCapture] Failed to update cursor capture: %@", error.localizedDescription);
+                     } else {
+                       NSLog(@"[SCCapture] Cursor capture %@", enabled ? @"enabled" : @"disabled");
+                     }
+                   }];
   }
 }
 
@@ -243,10 +277,24 @@ static NSString *pixelFormatName(OSType format) {
 
   CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
   if (!pixelBuffer) {
+    SCVideoFrameCallbackBlock callback = nil;
+    CMSampleBufferRef replaySampleBuffer = NULL;
     @synchronized(self) {
       if (self.lastValidSampleBuffer && !self.stopping && self.videoCallback) {
-        self.videoCallback(self.lastValidSampleBuffer);
+        replaySampleBuffer = (CMSampleBufferRef)CFRetain(self.lastValidSampleBuffer);
+        callback = self.videoCallback;
       }
+    }
+    if (callback && replaySampleBuffer) {
+      if (!callback(replaySampleBuffer)) {
+        @synchronized(self) {
+          self.stopping = YES;
+        }
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+          [self stopCapture];
+        });
+      }
+      CFRelease(replaySampleBuffer);
     }
     return;
   }
@@ -257,6 +305,17 @@ static NSString *pixelFormatName(OSType format) {
     NSLog(@"[SCCapture] Received pixel format %@", pixelFormatName(receivedFormat));
     if (self.pixelFormat == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange && receivedFormat != self.pixelFormat) {
       NSLog(@"[SCCapture] Warning: requested P010 capture but received %@", pixelFormatName(receivedFormat));
+      @synchronized(self) {
+        self.pixelFormatMismatch = YES;
+        self.stopping = YES;
+        if (self.captureSignal) {
+          dispatch_semaphore_signal(self.captureSignal);
+        }
+      }
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        [self stopCapture];
+      });
+      return;
     }
   }
 

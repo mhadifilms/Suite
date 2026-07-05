@@ -1,6 +1,9 @@
 # macos specific packaging
 
 if (SUNSHINE_BUILD_HOMEBREW)
+    install(TARGETS vd_helper
+            RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/"
             DESTINATION "${SUNSHINE_ASSETS_DIR}")
 
@@ -21,6 +24,10 @@ else()
     install(TARGETS sunshine
         BUNDLE DESTINATION .
         COMPONENT Runtime)
+
+    install(TARGETS vd_helper
+            RUNTIME DESTINATION "${MAC_BUNDLE_CONTENTS}/MacOS"
+            COMPONENT Runtime)
 
     install(FILES "${APPLE_PLIST_FILE}"
             DESTINATION "${MAC_BUNDLE_CONTENTS}"

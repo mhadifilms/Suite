@@ -696,7 +696,11 @@ namespace config {
       {}  // wa
     },  // display_device
 
+#ifdef __APPLE__
     150000,  // max_bitrate
+#else
+    0,  // max_bitrate
+#endif
     0  // minimum_fps_target (0 = framerate)
   };
 
@@ -714,7 +718,14 @@ namespace config {
    * @brief Default stream configuration values used before file and CLI overrides.
    */
   stream_t stream {
+#ifdef __APPLE__
+    // Tolerate longer transient network stalls before dropping the session.
+    // Input rides the reliable control channel, so keystrokes typed during a
+    // stall are delivered once connectivity recovers instead of being lost.
+    30s,  // ping_timeout
+#else
     10s,  // ping_timeout
+#endif
 
     APPS_JSON_PATH,
 
@@ -1668,6 +1679,18 @@ namespace config {
       input.keybindings.emplace(0xA5, 0x5B);
     }
 
+    input.key_swap_cmd_ctrl = false;
+    bool_f(vars, "key_swap_cmd_ctrl", input.key_swap_cmd_ctrl);
+
+    if (input.key_swap_cmd_ctrl) {
+      // Swap Ctrl and Cmd (Win) so Windows-client Ctrl+C/V/Z arrive as Cmd+C/V/Z on macOS hosts.
+      input.keybindings.emplace(0x11 /* VKEY_CONTROL */, 0x5B /* VKEY_LWIN */);
+      input.keybindings.emplace(0xA2 /* VKEY_LCONTROL */, 0x5B /* VKEY_LWIN */);
+      input.keybindings.emplace(0xA3 /* VKEY_RCONTROL */, 0x5C /* VKEY_RWIN */);
+      input.keybindings.emplace(0x5B /* VKEY_LWIN */, 0xA2 /* VKEY_LCONTROL */);
+      input.keybindings.emplace(0x5C /* VKEY_RWIN */, 0xA3 /* VKEY_RCONTROL */);
+    }
+
     to = std::numeric_limits<int>::min();
     int_f(vars, "back_button_timeout", to);
 
@@ -1705,6 +1728,9 @@ namespace config {
 
     bool_f(vars, "notify_pre_releases", sunshine.notify_pre_releases);
     bool_f(vars, "system_tray", sunshine.system_tray);
+
+    bool_f(vars, "clipboard_sync", sunshine.clipboard_sync);
+    bool_f(vars, "cursor_channel", sunshine.cursor_channel);
 
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});

@@ -20,8 +20,11 @@ API_AVAILABLE(macos(12.3))
 @property(nonatomic, assign) int frameHeight;
 @property(nonatomic, assign) BOOL hdrDisplay;
 @property(nonatomic, assign) BOOL loggedPixelFormat;
+@property(nonatomic, assign) BOOL pixelFormatMismatch;
+@property(nonatomic, assign) BOOL captureCursor;
 
 @property(nonatomic, strong) SCStream *stream;
+@property(nonatomic, strong) SCStreamConfiguration *streamConfig;
 @property(nonatomic, strong) SCShareableContent *shareableContent;
 @property(nonatomic, strong) dispatch_queue_t videoQueue;
 @property(nonatomic, copy) SCVideoFrameCallbackBlock videoCallback;
@@ -34,6 +37,7 @@ API_AVAILABLE(macos(12.3))
 - (instancetype)initWithDisplay:(CGDirectDisplayID)displayID frameRate:(int)frameRate;
 - (void)setFrameWidth:(int)frameWidth frameHeight:(int)frameHeight;
 - (dispatch_semaphore_t)capture:(SCVideoFrameCallbackBlock)videoCallback;
+- (void)setCursorCapture:(BOOL)enabled;
 - (void)stopCapture;
 
 @end

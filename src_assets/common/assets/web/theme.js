@@ -7,11 +7,13 @@ export const getPreferredTheme = () => {
         return storedTheme
     }
 
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    // Suite defaults to its own grading-suite dark theme.
+    return 'suite'
 }
 
 // Define which themes are dark (for Bootstrap compatibility)
 const darkThemes = new Set([
+    'suite',
     'dark',
     'dracula',
     'ember',

@@ -857,6 +857,18 @@ namespace nvhttp {
     return codec_mode_flags;
   }
 
+  bool is_hdr_supported_for_apps() {
+    if (video::active_hevc_mode < 3) {
+      return false;
+    }
+
+#ifdef __APPLE__
+    return platf::is_hdr_supported_for_capture();
+#else
+    return true;
+#endif
+  }
+
   /**
    * @brief Build the GameStream server-info response.
    *
@@ -890,6 +902,21 @@ namespace nvhttp {
     tree.put("root.HttpsPort", net::map_port(PORT_HTTPS));
     tree.put("root.ExternalPort", net::map_port(PORT_HTTP));
     tree.put("root.MaxLumaPixelsHEVC", video::active_hevc_mode > 1 ? "1869449984" : "0");
+
+    // Suite extension: advertise host capabilities so Screener clients can enable
+    // matching features. Stock Moonlight clients ignore this unknown node.
+    {
+      uint32_t suite_flags = 0;
+#ifdef __APPLE__
+      if (config::sunshine.clipboard_sync) {
+        suite_flags |= 0x01;  // clipboard sync
+      }
+      if (config::sunshine.cursor_channel) {
+        suite_flags |= 0x02;  // cursor channel
+      }
+#endif
+      tree.put("root.SuiteFeatureFlags", suite_flags);
+    }
 
     // Only include the MAC address for requests sent from paired clients over HTTPS.
     // For HTTP requests, use a placeholder MAC address that Moonlight knows to ignore.
@@ -973,7 +1000,7 @@ namespace nvhttp {
     for (auto &proc : proc::proc.get_apps()) {
       pt::ptree app;
 
-      app.put("IsHdrSupported"s, video::active_hevc_mode >= 3 ? 1 : 0);
+      app.put("IsHdrSupported"s, is_hdr_supported_for_apps() ? 1 : 0);
       app.put("AppTitle"s, proc.name);
       app.put("ID", proc.id);
 
@@ -993,6 +1020,7 @@ namespace nvhttp {
 
     pt::ptree tree;
     bool revert_display_configuration {false};
+    bool virtual_display_created {false};
     auto g = util::fail_guard([&]() {
       std::ostringstream data;
 
@@ -1005,6 +1033,9 @@ namespace nvhttp {
       response->close_connection_after_response = true;
 
       if (revert_display_configuration) {
+        if (virtual_display_created) {
+          display_device::destroy_virtual_display();
+        }
         display_device::revert_configuration();
       }
     });
@@ -1061,6 +1092,7 @@ namespace nvhttp {
       // Create the macOS virtual display after encoder probing succeeds so
       // probes run against stable physical displays.
       display_device::create_virtual_display(config::video, *launch_session);
+      virtual_display_created = true;
     }
 
     auto encryption_mode = net::encryption_mode_for_address(request->remote_endpoint().address());
@@ -1100,6 +1132,7 @@ namespace nvhttp {
     rtsp_stream::launch_session_raise(launch_session);
 
     // Stream was started successfully, we will revert the config when the app or session terminates
+    virtual_display_created = false;
     revert_display_configuration = false;
   }
 
@@ -1114,6 +1147,7 @@ namespace nvhttp {
     print_req<SunshineHTTPS>(request);
 
     pt::ptree tree;
+    bool virtual_display_created {false};
     auto g = util::fail_guard([&]() {
       std::ostringstream data;
 
@@ -1124,6 +1158,9 @@ namespace nvhttp {
       pt::write_xml(data, tree);
       response->write(data.str());
       response->close_connection_after_response = true;
+      if (virtual_display_created) {
+        display_device::destroy_virtual_display();
+      }
     });
 
     auto current_appid = proc::proc.running();
@@ -1177,6 +1214,7 @@ namespace nvhttp {
       // Create the macOS virtual display after encoder probing succeeds so
       // probes run against stable physical displays.
       display_device::create_virtual_display(config::video, *launch_session);
+      virtual_display_created = true;
     }
 
     auto encryption_mode = net::encryption_mode_for_address(request->remote_endpoint().address());
@@ -1203,6 +1241,7 @@ namespace nvhttp {
     tree.put("root.resume", 1);
 
     rtsp_stream::launch_session_raise(launch_session);
+    virtual_display_created = false;
   }
 
   /**
@@ -1235,6 +1274,56 @@ namespace nvhttp {
     // The config needs to be reverted regardless of whether "proc::proc.terminate()" was called or not.
     display_device::revert_configuration();
   }
+
+#ifdef __APPLE__
+  /**
+   * @brief Suite extension: read the host clipboard text for a paired client.
+   *
+   * Requests reaching this handler are already restricted to paired clients by the
+   * HTTPS server's TLS client-certificate verification.
+   *
+   * @param response HTTP response object to populate.
+   * @param request HTTP request data from the client.
+   */
+  void clipboard_get(resp_https_t response, req_https_t request) {
+    print_req<SunshineHTTPS>(request);
+
+    if (!config::sunshine.clipboard_sync) {
+      response->write(SimpleWeb::StatusCode::client_error_not_found);
+      return;
+    }
+
+    const auto content = platf::get_clipboard();
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/plain; charset=utf-8");
+    response->write(SimpleWeb::StatusCode::success_ok, content, headers);
+  }
+
+  /**
+   * @brief Suite extension: replace the host clipboard text from a paired client.
+   *
+   * @param response HTTP response object to populate.
+   * @param request HTTP request data from the client.
+   */
+  void clipboard_set(resp_https_t response, req_https_t request) {
+    print_req<SunshineHTTPS>(request);
+
+    if (!config::sunshine.clipboard_sync) {
+      response->write(SimpleWeb::StatusCode::client_error_not_found);
+      return;
+    }
+
+    constexpr std::size_t max_clipboard_bytes = 512 * 1024;
+    auto content = request->content.string();
+    if (content.size() > max_clipboard_bytes) {
+      response->write(SimpleWeb::StatusCode::client_error_payload_too_large);
+      return;
+    }
+
+    const bool ok = platf::set_clipboard(content);
+    response->write(ok ? SimpleWeb::StatusCode::success_ok : SimpleWeb::StatusCode::server_error_internal_server_error);
+  }
+#endif
 
   /**
    * @brief Return an application asset requested by the client.
@@ -1378,6 +1467,10 @@ namespace nvhttp {
       resume(host_audio, resp, req);
     };
     https_server.resource["^/cancel$"]["GET"] = cancel;
+#ifdef __APPLE__
+    https_server.resource["^/clipboard$"]["GET"] = clipboard_get;
+    https_server.resource["^/clipboard$"]["POST"] = clipboard_set;
+#endif
 
     https_server.config.reuse_address = true;
     https_server.config.address = net::get_bind_address(address_family);

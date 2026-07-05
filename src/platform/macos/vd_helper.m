@@ -56,10 +56,8 @@ static CGVirtualDisplayDescriptor *keepDesc = nil;
 static volatile sig_atomic_t shouldExit = 0;
 
 static void handle_signal(int sig) {
+  (void)sig;
   shouldExit = 1;
-  dispatch_async(dispatch_get_main_queue(), ^{
-    CFRunLoopStop(CFRunLoopGetMain());
-  });
 }
 
 static BOOL checkDisplayInList(uint32_t targetID, uint32_t *outCount) {
@@ -341,6 +339,15 @@ int main(int argc, const char *argv[]) {
             CGDisplayIsActive(resultID),
             CGDisplayIsInMirrorSet(resultID),
             CGDisplayMirrorsDisplay(resultID));
+
+    if (!found) {
+      fprintf(stderr, "[vd_helper] Display %u never became active; failing virtual display creation\n", resultID);
+      keepAlive = nil;
+      keepDesc = nil;
+      fprintf(stdout, "0\n");
+      fflush(stdout);
+      return 1;
+    }
 
     fprintf(stdout, "%u\n", resultID);
     fflush(stdout);

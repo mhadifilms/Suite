@@ -279,6 +279,7 @@ namespace config {
 
     bool keyboard;  ///< Enable keyboard input from clients.
     bool key_rightalt_to_key_win;  ///< Map the client Right Alt key to the Windows key.
+    bool key_swap_cmd_ctrl;  ///< Swap Ctrl and Cmd (Win) keys, so Windows-client Ctrl shortcuts trigger Cmd shortcuts on a macOS host.
     bool mouse;  ///< Enable mouse input from clients.
     bool controller;  ///< Enable controller input from clients.
 
@@ -371,6 +372,10 @@ namespace config {
     // List of allowed origins for CSRF protection (e.g., "https://example.com,https://app.example.com")
     // Comma-separated list of additional origins. Default includes localhost variants and web UI port.
     std::vector<std::string> csrf_allowed_origins;  ///< Additional origins allowed by CSRF validation.
+
+    // Suite extension feature gates. Advertised to clients via SuiteFeatureFlags.
+    bool clipboard_sync {true};  ///< Allow paired clients to read/write the host clipboard.
+    bool cursor_channel {true};  ///< Stream cursor shape to clients for local rendering.
   };
 
   extern video_t video;

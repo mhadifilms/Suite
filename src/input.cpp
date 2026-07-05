@@ -866,15 +866,16 @@ namespace input {
    */
   void send_key_and_modifiers(uint16_t key_code, bool release, uint8_t flags, uint8_t synthetic_modifiers) {
     if (!release) {
-      // Press any synthetic modifiers required for this key
+      // Press any synthetic modifiers required for this key.
+      // Modifiers are remapped so options like key_swap_cmd_ctrl also apply to synthetic presses.
       if (synthetic_modifiers & MODIFIER_SHIFT) {
-        platf::keyboard_update(platf_input, VKEY_SHIFT, false, flags);
+        platf::keyboard_update(platf_input, map_keycode(VKEY_SHIFT), false, flags);
       }
       if (synthetic_modifiers & MODIFIER_CTRL) {
-        platf::keyboard_update(platf_input, VKEY_CONTROL, false, flags);
+        platf::keyboard_update(platf_input, map_keycode(VKEY_CONTROL), false, flags);
       }
       if (synthetic_modifiers & MODIFIER_ALT) {
-        platf::keyboard_update(platf_input, VKEY_MENU, false, flags);
+        platf::keyboard_update(platf_input, map_keycode(VKEY_MENU), false, flags);
       }
     }
 
@@ -883,13 +884,13 @@ namespace input {
     if (!release) {
       // Raise any synthetic modifier keys we pressed
       if (synthetic_modifiers & MODIFIER_SHIFT) {
-        platf::keyboard_update(platf_input, VKEY_SHIFT, true, flags);
+        platf::keyboard_update(platf_input, map_keycode(VKEY_SHIFT), true, flags);
       }
       if (synthetic_modifiers & MODIFIER_CTRL) {
-        platf::keyboard_update(platf_input, VKEY_CONTROL, true, flags);
+        platf::keyboard_update(platf_input, map_keycode(VKEY_CONTROL), true, flags);
       }
       if (synthetic_modifiers & MODIFIER_ALT) {
-        platf::keyboard_update(platf_input, VKEY_MENU, true, flags);
+        platf::keyboard_update(platf_input, map_keycode(VKEY_MENU), true, flags);
       }
     }
   }

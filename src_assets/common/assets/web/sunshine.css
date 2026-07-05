@@ -49,6 +49,56 @@
    Dark Themes
    ========================================================================== */
 
+/* Suite Theme - Grading-suite dark. Default theme for the Suite host. */
+[data-theme="suite"] {
+    --color-primary: #E8A54B;
+    --color-primary-hover: #F2BA6C;
+    --color-primary-light: #2E2410;
+    --color-on-primary: #171207;
+    --color-accent: #6FA8DC;
+    --color-accent-hover: #8FBCE6;
+    --color-accent-light: #14202E;
+    --color-success: #5BBB8A;
+    --color-success-hover: #74CBA0;
+    --color-success-light: #10281C;
+    --color-danger: #E06C6C;
+    --color-danger-hover: #EA8A8A;
+    --color-danger-light: #2E1414;
+    --color-warning: #E5C15B;
+    --color-warning-hover: #EDD07E;
+    --color-warning-light: #2C2410;
+    --color-info: #6FA8DC;
+    --color-info-hover: #8FBCE6;
+    --color-info-light: #14202E;
+
+    --color-on-success: #0F1013;
+    --color-on-info: #0F1013;
+    --color-on-warning: #171207;
+
+    --color-bg-base: #0F1013;
+    --color-bg-subtle: #16171B;
+    --color-bg-muted: #1E2025;
+    --color-surface: #16171B;
+    --color-surface-raised: #1E2025;
+
+    --color-border: #26282F;
+    --color-border-strong: #383B44;
+
+    --color-text-base: #E9EAEE;
+    --color-text-muted: #A6A9B3;
+    --color-text-subtle: #6E727E;
+
+    --navbar-bg: #131418;
+    --navbar-text: #E9EAEE;
+    --navbar-text-muted: #9DA1AC;
+    --navbar-border: #26282F;
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+}
+
 /* Dark Theme - Simple clean dark design */
 [data-theme="dark"] {
     --color-primary: #0d6efd;
@@ -1130,7 +1180,24 @@ body {
     background: var(--navbar-bg) !important;
     box-shadow: var(--shadow-md);
     border: none;
+    border-bottom: 1px solid var(--navbar-border, transparent);
     transition: all var(--transition-base);
+}
+
+.navbar-sunshine .navbar-brand.brand-wordmark {
+    font-weight: 800;
+    font-size: 1.25rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--navbar-text) !important;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 45px;
+}
+
+.navbar-sunshine .navbar-brand.brand-wordmark .brand-mark {
+    color: var(--color-primary, var(--navbar-text));
 }
 
 .navbar-sunshine .navbar-brand {
